@@ -1,0 +1,140 @@
+#!/bin/bash
+
+# (c) 2007 Alex Malinovich <demonbane@the-love-shack.net>
+# Released under the GPL
+# See www.fsf.org for a full copy of the GPL.
+
+human_readable_number () {
+	if [ -z $1 ]; then
+		read somenun
+	else
+		somenum=$1
+	fi
+	if ! which dc &>/dev/null || [ $somenum -lt 1024 ]; then
+		echo -n "$somenum" KB
+		return
+	else
+		if [ $somenum -gt 1048575 ]; then
+			echo -n `echo "1k $somenum 1048576 / p" | dc` GB
+		elif [ $somenum -gt 1023 ]; then
+			echo -n `echo "1k $somenum 1024 / p" | dc` MB
+		fi
+	fi
+}
+
+VERSION="0.5"
+
+if [[ -z "$1" || "$1" == "-h" || "$1" == "--help" || "$1" == "-v" || "$1" == "--version" ]]; then
+	echo "Usage: `basename $0` ORIGINALDIR NEWDIR"
+	echo "       `basename $0` -r CURRENTDIR [DELTAFILE]"
+	echo ""
+	echo "`basename $0` version $VERSION"
+	echo ""
+	echo "In the first form, create an rdiff delta file between ORIGINALDIR and NEWDIR"
+	echo "In the second form, restore original directory into . using CURRENTDIR"
+	echo "(and DELTAFILE if specified)"
+	echo -e "\nDELTAFILE defaults to [NEWDIR | CURRENTDIR]/deltafile\n"
+	echo "When using the second form, you will need 2x the size of the directory being"
+	echo "recovered free on your current filesystem during processing."
+	echo ""
+	exit 0
+fi
+
+if [ "$1" == "-r" ]; then
+	REVERSE="true"
+	echo -n "Checking paths... "
+	if [ ! -d "$2" ]; then
+		echo "failed."
+		echo "A path check failed. Please check that ORIGINALDIR and NEWDIR are valid."
+		exit 1
+	fi
+
+	NEWDIR=`basename -- "$2"`
+	NSTARTDIR=`dirname -- "$2"`
+	DELTAFILE="$NSTARTDIR/$NEWDIR/deltafile"
+	if [[ -n $3 && -f $3 ]]; then
+		DELTAFILE="$3"
+	elif [ ! -f "$DELTAFILE" ]; then
+		echo "failed."
+		echo "Unable to find \"$DELTAFILE\". Aborting."
+		exit 1
+	fi
+	echo "done."
+else
+	REVERSE="false"
+	echo -n "Checking paths... "
+	if ! [[ -d $1 && -d $2 ]]; then
+		echo "failed."
+		echo "A path check failed. Please check that ORIGINALDIR and NEWDIR are valid."
+		exit 1
+	else
+		echo "done."
+	fi
+	ORIGINALDIR=`basename -- "$1"`
+	NEWDIR=`basename -- "$2"`
+	OSTARTDIR=`dirname -- "$1"`
+	NSTARTDIR=`dirname -- "$2"`
+	DELTAFILE="$NSTARTDIR/$NEWDIR/deltafile"
+fi
+
+if [ "$REVERSE" == "false" ]; then
+	echo -n "Creating signature... "
+	if tar c -C "$NSTARTDIR" "$NEWDIR" | rdiff -- signature - tempsig 2>/dev/null; then
+		echo "done."
+	else
+		echo "failed."
+		exit 1
+	fi
+	while [ -f "$DELTAFILE" ]; do
+		DELTAFILE="$DELTAFILE.1"
+	done
+	echo -n "Creating delta in \"$DELTAFILE\"... "
+	if tar c -C "$OSTARTDIR" "$ORIGINALDIR" | rdiff -- delta tempsig - "$DELTAFILE" 2>/dev/null; then
+		echo "done."
+	else
+		echo "failed."
+		exit 1
+	fi
+	rm tempsig
+elif [ ! -f "$DELTAFILE" ]; then
+	echo "Couldn't find deltafile, aborting."
+	exit 1
+elif [ "$REVERSE" == "true" ]; then
+	TEMPARCHIVE=temptar.tar
+	while [ -f $TEMPARCHIVE ]; do
+		TEMPARCHIVE="$TEMPARCHIVE.1"
+	done
+	echo -n "Checking free space... "
+	CURSIZE=`du -s "$2" | cut -f 1 | tr -d '\n'`
+	CURFREE=`df -P . | grep -v "^Filesystem" | awk '{print $4}' | tr -d '\n'`
+	NEEDSIZE=$(($CURSIZE + 1024))
+	if [ $NEEDSIZE -gt $CURFREE ] || [ "$DEBUG_MAKEDIFF" == "true" ]; then
+		echo "failed."
+		echo "	Current size   = `human_readable_number $CURSIZE`"
+		echo "	Space required = `human_readable_number $(($CURSIZE * 2 + 1024))`"
+		echo "	Free space     = `human_readable_number $CURFREE`"
+		exit 1
+	else
+		echo "done."
+	fi
+	echo -n "Creating temporary archive in \"$TEMPARCHIVE\"... "
+	if tar cf temptar.tar -C "$NSTARTDIR" "$NEWDIR" 2>/dev/null; then
+		echo "done."
+	else
+		echo "failed."
+		exit 1
+	fi
+	echo -n "Patching and extracting... "
+	if rdiff -- patch temptar.tar "$DELTAFILE" - | tar x --backup; then
+		echo "done."
+	else
+		echo "failed."
+		exit 1
+	fi
+	rm temptar.tar
+else
+	echo "Unknown error... aborting."
+	exit 1
+fi
+
+

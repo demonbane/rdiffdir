@@ -1,0 +1,24 @@
+rdiffdir REQUIRES the following external programs:
+
+bash
+rdiff
+tar
+
+It will also OPTIONALLY use 'dc' if it exists (currently only used to pretty
+up some error messages.) but will work just fine without it as well.
+
+This might work with a shell other than bash, but I wouldn't bet on it. If
+you manage to get it working in a different shell by all means let me know.
+
+As it only relies on the tools mentioned above, this should be pretty simple
+to get working in Windows or OSX. In Windows I'd imagine Cygwin with the
+appropriate packages installed should work without a hitch. In OSX you'd
+probably just need to make sure that bash, rdiff, and tar are available
+and it should work there as well.
+
+This was just something I threw together in an afternoon, so if it breaks
+your system, kills your dog, or makes your wife divorce you, I'm not
+responsible. I doubt that it could do any of those things, but you're on
+your own either way.
+
+Feel free to email me <demonbane@the-love-shack.net> with any problems, suggestions, etc.
