@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# (c) 2007 Alex Malinovich <demonbane@the-love-shack.net>
+# (c) 2007-2009 Alex Malinovich <demonbane@the-love-shack.net>
 # Released under the GPL
 # See www.fsf.org for a full copy of the GPL.
 
@@ -118,7 +118,7 @@ elif [ "$REVERSE" == "true" ]; then
 		echo "done."
 	fi
 	echo -n "Creating temporary archive in \"$TEMPARCHIVE\"... "
-	if tar cf temptar.tar -C "$NSTARTDIR" "$NEWDIR" 2>/dev/null; then
+	if tar cf temptar.tar -C "$NSTARTDIR" --exclude="`basename "$DELTAFILE"`" "$NEWDIR" 2>/dev/null; then
 		echo "done."
 	else
 		echo "failed."
